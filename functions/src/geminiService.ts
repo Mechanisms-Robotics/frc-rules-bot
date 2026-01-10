@@ -46,6 +46,24 @@ export async function uploadManual(path: string, mimeType: string, displayName: 
 }
 
 /**
+ * Lists all files uploaded to the Gemini Files API.
+ */
+export async function listUploadedFiles() {
+    const { fileManager } = getClients();
+    const result = await fileManager.listFiles();
+    return result.files;
+}
+
+/**
+ * Deletes a file from the Gemini Files API.
+ * @param name The name of the file (e.g., "files/abc-123")
+ */
+export async function deleteUploadedFile(name: string) {
+    const { fileManager } = getClients();
+    await fileManager.deleteFile(name);
+}
+
+/**
  * Chats with the Gemini model using the provided file as context.
  */
 export async function askGeminiWithManual(question: string, fileUri: string, modelName: string = "gemini-2.5-flash") {
