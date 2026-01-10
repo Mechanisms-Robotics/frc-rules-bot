@@ -3,7 +3,8 @@ import * as path from 'path';
 import { uploadManual, listUploadedFiles, deleteUploadedFile } from '../geminiService';
 
 const DOCUMENTS_DIR = path.resolve(__dirname, '../../documents');
-const KNOWLEDGE_BASE_FILE = path.resolve(__dirname, '../../src/knowledgeBase.json');
+const KNOWLEDGE_BASE_FILE_SRC = path.resolve(__dirname, '../../src/knowledgeBase.json');
+const KNOWLEDGE_BASE_FILE_LIB = path.resolve(__dirname, '../../lib/knowledgeBase.json');
 
 async function main() {
     try {
@@ -34,8 +35,11 @@ async function main() {
         
         if (filesToUpload.length === 0) {
             console.log("No PDF files found in 'documents' directory.");
-            // Write empty array to knowledge base
-            fs.writeFileSync(KNOWLEDGE_BASE_FILE, JSON.stringify([], null, 2));
+            const empty = JSON.stringify([], null, 2);
+            fs.writeFileSync(KNOWLEDGE_BASE_FILE_SRC, empty);
+            // Ensure lib directory exists before writing
+            if (!fs.existsSync(path.dirname(KNOWLEDGE_BASE_FILE_LIB))) fs.mkdirSync(path.dirname(KNOWLEDGE_BASE_FILE_LIB), { recursive: true });
+            fs.writeFileSync(KNOWLEDGE_BASE_FILE_LIB, empty);
             return;
         }
 
@@ -56,9 +60,17 @@ async function main() {
             }
         }
 
-        // 4. Save to Knowledge Base JSON
+        // 4. Save to Knowledge Base JSON (Both SRC and LIB)
         console.log("Saving File URIs to knowledgeBase.json...");
-        fs.writeFileSync(KNOWLEDGE_BASE_FILE, JSON.stringify(uploadedUris, null, 2));
+        const jsonContent = JSON.stringify(uploadedUris, null, 2);
+        
+        fs.writeFileSync(KNOWLEDGE_BASE_FILE_SRC, jsonContent);
+        console.log(`Updated: ${KNOWLEDGE_BASE_FILE_SRC}`);
+
+        // Ensure lib directory exists
+        if (!fs.existsSync(path.dirname(KNOWLEDGE_BASE_FILE_LIB))) fs.mkdirSync(path.dirname(KNOWLEDGE_BASE_FILE_LIB), { recursive: true });
+        fs.writeFileSync(KNOWLEDGE_BASE_FILE_LIB, jsonContent);
+        console.log(`Updated: ${KNOWLEDGE_BASE_FILE_LIB}`);
         
         console.log("=== Sync Complete ===");
         console.log(`Knowledge Base updated with ${uploadedUris.length} files.`);
