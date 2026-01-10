@@ -9,7 +9,6 @@
     ├── package.json         # Dependencies (yarn)
     ├── tsconfig.json        # TypeScript configuration
     ├── src/
-    │   ├── index.ts         # Entry point: Slack Bolt handler + Firebase trigger
-    │   └── vertexService.ts # Service class for Vertex AI Search logic
+    │   └── index.ts         # Entry point: Slack Bolt handler + Firebase trigger
     └── .gitignore
 ```
