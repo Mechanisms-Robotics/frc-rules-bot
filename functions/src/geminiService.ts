@@ -85,3 +85,25 @@ export async function askGeminiWithManual(question: string, fileUri: string, mod
 
     return result.response.text();
 }
+
+/**
+ * Chats with the Gemini model using multiple files as context.
+ */
+export async function askGeminiWithContext(question: string, fileUris: string[], modelName: string = "gemini-2.5-flash") {
+    const { genAI } = getClients();
+    console.log(`Using model: ${modelName} with ${fileUris.length} context files`);
+    const model = genAI.getGenerativeModel({ model: modelName }, { apiVersion: 'v1beta' });
+
+    const contentParts: any[] = fileUris.map(uri => ({
+        fileData: {
+            mimeType: "application/pdf",
+            fileUri: uri
+        }
+    }));
+
+    contentParts.push({ text: question });
+
+    const result = await model.generateContent(contentParts);
+
+    return result.response.text();
+}

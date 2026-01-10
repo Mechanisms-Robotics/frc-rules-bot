@@ -1,7 +1,9 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import * as fs from 'fs';
+import * as path from 'path';
 import { App, ExpressReceiver } from '@slack/bolt';
-import { askGeminiWithManual } from './geminiService';
+import { askGeminiWithContext } from './geminiService';
 
 admin.initializeApp();
 
@@ -10,14 +12,22 @@ const config = functions.config();
 const slackToken = config.slack?.bot_token || process.env.SLACK_BOT_TOKEN;
 const slackSigningSecret = config.slack?.signing_secret || process.env.SLACK_SIGNING_SECRET;
 
-const rulesFileUri = config.gemini?.rules_file_uri || process.env.RULES_FILE_URI;
+// Load Knowledge Base
+let ruleFileUris: string[] = [];
+try {
+    const kbPath = path.resolve(__dirname, './knowledgeBase.json');
+    if (fs.existsSync(kbPath)) {
+        ruleFileUris = JSON.parse(fs.readFileSync(kbPath, 'utf-8'));
+        console.log(`Loaded ${ruleFileUris.length} file URIs from knowledge base.`);
+    } else {
+        console.warn("knowledgeBase.json not found. Bot will not have context until synced.");
+    }
+} catch (e) {
+    console.error("Failed to load knowledgeBase.json:", e);
+}
 
 if (!slackToken || !slackSigningSecret) {
     console.error("Missing Slack configuration. Set slack.bot_token and slack.signing_secret.");
-}
-
-if (!rulesFileUri) {
-    console.error("Missing Gemini Rules File URI. Set gemini.rules_file_uri or RULES_FILE_URI.");
 }
 
 // Initialize Slack Bolt Receiver
@@ -60,16 +70,16 @@ app.event('app_mention', async ({ event, context, client, say }) => {
             return;
         }
 
-        if (!rulesFileUri) {
+        if (ruleFileUris.length === 0) {
              await say({
-                text: "I'm not fully configured yet. Please check my logs (Missing Rules File URI).",
+                text: "I'm not fully configured yet. No knowledge base files found.",
                 thread_ts: threadTs
             });
             return;
         }
 
-        // Query Gemini with the Manual
-        const answer = await askGeminiWithManual(query, rulesFileUri);
+        // Query Gemini with the Context
+        const answer = await askGeminiWithContext(query, ruleFileUris);
 
         // Reply in thread
         await say({
