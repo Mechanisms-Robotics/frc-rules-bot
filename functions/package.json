@@ -8,7 +8,6 @@
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "upload-manual": "ts-node src/tools/uploadManual.ts",
     "files:list": "ts-node src/tools/manageFiles.ts list",
     "files:delete": "ts-node src/tools/manageFiles.ts delete",
     "sync-docs": "ts-node src/tools/syncDocs.ts",
