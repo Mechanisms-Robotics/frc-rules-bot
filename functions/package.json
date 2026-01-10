@@ -11,7 +11,8 @@
     "upload-manual": "ts-node src/tools/uploadManual.ts",
     "files:list": "ts-node src/tools/manageFiles.ts list",
     "files:delete": "ts-node src/tools/manageFiles.ts delete",
-    "sync-docs": "ts-node src/tools/syncDocs.ts"
+    "sync-docs": "ts-node src/tools/syncDocs.ts",
+    "sync-and-deploy": "yarn sync-docs && yarn deploy"
   },
   "engines": {
     "node": "22"
