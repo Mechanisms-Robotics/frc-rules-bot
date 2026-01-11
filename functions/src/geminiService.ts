@@ -91,19 +91,40 @@ export async function askGeminiWithManual(question: string, fileUri: string, mod
  */
 export async function askGeminiWithContext(question: string, fileUris: string[], modelName: string = "gemini-2.5-flash") {
     const { genAI } = getClients();
-    console.log(`Using model: ${modelName} with ${fileUris.length} context files`);
-    const model = genAI.getGenerativeModel({ model: modelName }, { apiVersion: 'v1beta' });
+    
+    // Helper function to perform the generation request
+    const generate = async (currentModel: string) => {
+        console.log(`Using model: ${currentModel} with ${fileUris.length} context files`);
+        const model = genAI.getGenerativeModel({ model: currentModel }, { apiVersion: 'v1beta' });
 
-    const contentParts: any[] = fileUris.map(uri => ({
-        fileData: {
-            mimeType: "application/pdf",
-            fileUri: uri
+        const contentParts: any[] = fileUris.map(uri => ({
+            fileData: {
+                mimeType: "application/pdf",
+                fileUri: uri
+            }
+        }));
+
+        contentParts.push({ text: question });
+        return await model.generateContent(contentParts);
+    };
+
+    try {
+        const result = await generate(modelName);
+        return result.response.text();
+    } catch (error: any) {
+        // Check if the error is a Quota Exceeded error (429) and we are using the primary model
+        if (modelName === "gemini-2.5-flash" && (error.message?.includes('429') || error.status === 429)) {
+            console.warn(`Quota exceeded for ${modelName}. Falling back to gemini-1.5-flash...`);
+            try {
+                const fallbackResult = await generate("gemini-1.5-flash");
+                return fallbackResult.response.text();
+            } catch (fallbackError) {
+                console.error("Fallback model also failed:", fallbackError);
+                throw fallbackError; // Rethrow if fallback also fails
+            }
         }
-    }));
-
-    contentParts.push({ text: question });
-
-    const result = await model.generateContent(contentParts);
-
-    return result.response.text();
+        
+        // If it's not a 429 or we are already on the fallback, rethrow
+        throw error;
+    }
 }
