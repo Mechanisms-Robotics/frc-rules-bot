@@ -114,9 +114,9 @@ export async function askGeminiWithContext(question: string, fileUris: string[],
     } catch (error: any) {
         // Check if the error is a Quota Exceeded error (429) and we are using the primary model
         if (modelName === "gemini-2.5-flash" && (error.message?.includes('429') || error.status === 429)) {
-            console.warn(`Quota exceeded for ${modelName}. Falling back to gemini-flash-latest...`);
+            console.warn(`Quota exceeded for ${modelName}. Falling back to gemini-2.5-flash-lite...`);
             try {
-                const fallbackResult = await generate("gemini-flash-latest");
+                const fallbackResult = await generate("gemini-2.5-flash-lite");
                 return fallbackResult.response.text();
             } catch (fallbackError) {
                 console.error("Fallback model also failed:", fallbackError);
