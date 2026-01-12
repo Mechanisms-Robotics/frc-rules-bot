@@ -89,8 +89,11 @@ export async function askGeminiWithManual(question: string, fileUri: string, mod
 /**
  * Chats with the Gemini model using multiple files as context.
  */
-export async function askGeminiWithContext(question: string, fileUris: string[], modelName: string = "gemini-2.5-flash") {
+export async function askGeminiWithContext(question: string, fileUris: string[], modelName?: string) {
     const { genAI } = getClients();
+
+    // Determine the primary model: Argument > Env Var > Default
+    const primaryModel = modelName || process.env.GEMINI_MODEL || "gemini-2.5-flash";
     
     // Helper function to perform the generation request
     const generate = async (currentModel: string) => {
@@ -109,22 +112,40 @@ export async function askGeminiWithContext(question: string, fileUris: string[],
     };
 
     try {
-        const result = await generate(modelName);
+        const result = await generate(primaryModel);
         return result.response.text();
     } catch (error: any) {
-        // Check if the error is a Quota Exceeded error (429) and we are using the primary model
-        if (modelName === "gemini-2.5-flash" && (error.message?.includes('429') || error.status === 429)) {
-            console.warn(`Quota exceeded for ${modelName}. Falling back to gemini-2.5-flash-lite...`);
-            try {
-                const fallbackResult = await generate("gemini-2.5-flash-lite");
-                return fallbackResult.response.text();
-            } catch (fallbackError) {
-                console.error("Fallback model also failed:", fallbackError);
-                throw fallbackError; // Rethrow if fallback also fails
+        console.warn(`Error with primary model ${primaryModel}:`, error.message);
+
+        // Fallback Logic
+        if (error.status === 429 || error.message?.includes('429')) {
+            
+            // Tier 1 Fallback: If we started with Pro, try Flash
+            if (primaryModel.includes('pro')) {
+                console.log("Falling back to gemini-2.5-flash...");
+                try {
+                    const res = await generate("gemini-2.5-flash");
+                    return res.response.text();
+                } catch (e: any) {
+                    console.warn("gemini-2.5-flash also failed.", e.message);
+                    // Continue to next fallback
+                }
+            }
+
+            // Tier 2 Fallback: Try Flash-Lite (The ultimate safety net)
+            // We run this if the primary was NOT Lite, and (Primary failed OR Tier 1 failed)
+            if (!primaryModel.includes('lite')) {
+                console.log("Falling back to gemini-2.5-flash-lite...");
+                try {
+                    const res = await generate("gemini-2.5-flash-lite");
+                    return res.response.text();
+                } catch (e) {
+                    console.error("Critical: All fallback models failed.");
+                    throw e;
+                }
             }
         }
         
-        // If it's not a 429 or we are already on the fallback, rethrow
         throw error;
     }
 }
