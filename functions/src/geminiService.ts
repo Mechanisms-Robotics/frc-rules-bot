@@ -51,7 +51,7 @@ export async function uploadManual(path: string, mimeType: string, displayName: 
 export async function listUploadedFiles() {
     const { fileManager } = getClients();
     const result = await fileManager.listFiles();
-    return result.files;
+    return result.files || [];
 }
 
 /**
@@ -117,8 +117,9 @@ export async function askGeminiWithContext(question: string, fileUris: string[],
     } catch (error: any) {
         console.warn(`Error with primary model ${primaryModel}:`, error.message);
 
-        // Fallback Logic
-        if (error.status === 429 || error.message?.includes('429')) {
+        // Fallback Logic: Trigger on 429 (Quota) OR 503 (Overloaded)
+        if (error.status === 429 || error.message?.includes('429') || 
+            error.status === 503 || error.message?.includes('503')) {
             
             // Tier 1 Fallback: If we started with Pro, try Flash
             if (primaryModel.includes('pro')) {
