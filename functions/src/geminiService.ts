@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GoogleAIFileManager, FileState } from "@google/generative-ai/server";
 import * as functions from 'firebase-functions';
+import * as fs from 'fs';
+import * as path from 'path';
 
 let genAI: GoogleGenerativeAI | null = null;
 let fileManager: GoogleAIFileManager | null = null;
@@ -87,20 +89,54 @@ export async function askGeminiWithManual(question: string, fileUri: string, mod
 }
 
 /**
+ * Refreshes the knowledge base by uploading all PDFs in the directory.
+ */
+async function refreshContext(docDir: string): Promise<string[]> {
+    if (!fs.existsSync(docDir)) {
+        console.error(`Directory not found: ${docDir}`);
+        return [];
+    }
+    
+    console.log("Refreshing context documents...");
+    const filesToUpload = fs.readdirSync(docDir).filter(file => file.toLowerCase().endsWith('.pdf'));
+    const newUris: string[] = [];
+
+    for (const fileName of filesToUpload) {
+        const filePath = path.join(docDir, fileName);
+        try {
+            // Check if file exists in Gemini (optional optimization skipped for simplicity/reliability)
+            // Just upload new ones. Gemini Auto-clean handles old ones eventually.
+            // Or we could list and delete, but that takes longer. 
+            // We just want to get back online fast.
+            const uploadedFile = await uploadManual(filePath, "application/pdf", fileName);
+            newUris.push(uploadedFile.uri);
+        } catch (err) {
+            console.error(`Failed to refresh ${fileName}:`, err);
+        }
+    }
+    return newUris;
+}
+
+/**
  * Chats with the Gemini model using multiple files as context.
  */
-export async function askGeminiWithContext(question: string, fileUris: string[], modelName?: string) {
+export async function askGeminiWithContext(
+    question: string, 
+    fileUris: string[], 
+    modelName?: string, 
+    documentsDir?: string
+) {
     const { genAI } = getClients();
 
     // Determine the primary model: Argument > Env Var > Default
     const primaryModel = modelName || process.env.GEMINI_MODEL || "gemini-2.5-flash";
     
     // Helper function to perform the generation request
-    const generate = async (currentModel: string) => {
-        console.log(`Using model: ${currentModel} with ${fileUris.length} context files`);
+    const generate = async (currentModel: string, currentUris: string[]) => {
+        console.log(`Using model: ${currentModel} with ${currentUris.length} context files`);
         const model = genAI.getGenerativeModel({ model: currentModel }, { apiVersion: 'v1beta' });
 
-        const contentParts: any[] = fileUris.map(uri => ({
+        const contentParts: any[] = currentUris.map(uri => ({
             fileData: {
                 mimeType: "application/pdf",
                 fileUri: uri
@@ -112,10 +148,25 @@ export async function askGeminiWithContext(question: string, fileUris: string[],
     };
 
     try {
-        const result = await generate(primaryModel);
+        const result = await generate(primaryModel, fileUris);
         return result.response.text();
     } catch (error: any) {
         console.warn(`Error with primary model ${primaryModel}:`, error.message);
+
+        // Check for Expired/Missing Files (404 Not Found or 403 Forbidden)
+        if (documentsDir && (error.status === 404 || error.status === 403 || error.message?.includes('404') || error.message?.includes('403'))) {
+            console.warn("Detected invalid file context (expired?). Attempting refresh...");
+            const newUris = await refreshContext(documentsDir);
+            
+            if (newUris.length > 0) {
+                console.log("Context refreshed. Retrying query with new files...");
+                // Retry with new URIs (recursive call might be safer but simpler to just call generate)
+                const retryResult = await generate(primaryModel, newUris);
+                return retryResult.response.text();
+            } else {
+                console.error("Refresh failed or no files found.");
+            }
+        }
 
         // Fallback Logic: Trigger on 429 (Quota) OR 503 (Overloaded)
         if (error.status === 429 || error.message?.includes('429') || 
@@ -125,7 +176,7 @@ export async function askGeminiWithContext(question: string, fileUris: string[],
             if (primaryModel.includes('pro')) {
                 console.log("Falling back to gemini-2.5-flash...");
                 try {
-                    const res = await generate("gemini-2.5-flash");
+                    const res = await generate("gemini-2.5-flash", fileUris);
                     return res.response.text();
                 } catch (e: any) {
                     console.warn("gemini-2.5-flash also failed.", e.message);
@@ -138,7 +189,7 @@ export async function askGeminiWithContext(question: string, fileUris: string[],
             if (!primaryModel.includes('lite')) {
                 console.log("Falling back to gemini-2.5-flash-lite...");
                 try {
-                    const res = await generate("gemini-2.5-flash-lite");
+                    const res = await generate("gemini-2.5-flash-lite", fileUris);
                     return res.response.text();
                 } catch (e) {
                     console.error("Critical: All fallback models failed.");

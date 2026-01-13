@@ -78,8 +78,18 @@ app.event('app_mention', async ({ event, context, client, say }) => {
             return;
         }
 
+        // Inform user we are working
+        await say({
+            text: "Thinking... :thinking_face:",
+            thread_ts: threadTs
+        });
+
+        // Define documents directory for auto-refresh
+        // In Cloud Functions, this is typically at the root level relative to lib/index.js
+        const documentsDir = path.resolve(__dirname, '../documents');
+
         // Query Gemini with the Context
-        const answer = await askGeminiWithContext(query, ruleFileUris);
+        const answer = await askGeminiWithContext(query, ruleFileUris, undefined, documentsDir);
 
         // Reply in thread
         await say({
