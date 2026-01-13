@@ -78,11 +78,16 @@ app.event('app_mention', async ({ event, context, client, say }) => {
             return;
         }
 
-        // Inform user we are working
-        await say({
-            text: "Thinking... :thinking_face:",
-            thread_ts: threadTs
-        });
+        // Inform user we are working by adding a reaction
+        try {
+            await client.reactions.add({
+                channel: event.channel,
+                name: 'thinking_face',
+                timestamp: event.ts
+            });
+        } catch (reactionError) {
+            console.warn("Failed to add reaction (check 'reactions:write' scope):", reactionError);
+        }
 
         // Define documents directory for auto-refresh
         // In Cloud Functions, this is typically at the root level relative to lib/index.js
@@ -90,6 +95,17 @@ app.event('app_mention', async ({ event, context, client, say }) => {
 
         // Query Gemini with the Context
         const answer = await askGeminiWithContext(query, ruleFileUris, undefined, documentsDir);
+
+        // Remove the reaction (optional polish)
+        try {
+            await client.reactions.remove({
+                channel: event.channel,
+                name: 'thinking_face',
+                timestamp: event.ts
+            });
+        } catch (ignore) {
+            // Ignore errors removing reaction (e.g. if adding failed or message deleted)
+        }
 
         // Reply in thread
         await say({
