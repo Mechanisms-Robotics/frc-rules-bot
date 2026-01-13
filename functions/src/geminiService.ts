@@ -81,6 +81,9 @@ export async function askGeminiWithManual(question: string, fileUri: string, mod
             }
         },
         {
+            text: "Context: Anything that says 'Team Update' followed by a number supersedes the rules of that year with lower 'Team Update' numbers and the original rules."
+        },
+        {
             text: question
         }
     ]);
@@ -143,6 +146,8 @@ export async function askGeminiWithContext(
             }
         }));
 
+        const systemInstruction = "Context: Anything that says 'Team Update' followed by a number supersedes the rules of that year with lower 'Team Update' numbers and the original rules.";
+        contentParts.push({ text: systemInstruction });
         contentParts.push({ text: question });
         return await model.generateContent(contentParts);
     };
