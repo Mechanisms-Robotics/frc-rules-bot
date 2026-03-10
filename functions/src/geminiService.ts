@@ -81,7 +81,7 @@ export async function askGeminiWithManual(question: string, fileUri: string, mod
             }
         },
         {
-            text: "Context: Anything that says 'Team Update' followed by a number supersedes the rules of that year with lower 'Team Update' numbers and the original rules."
+            text: "You are the FRC Rules Bot. Your context includes the 2026 Game Manual and a combined Team Update file. Treat each 'Team Update ##' section as a separate update. Rule Hierarchy: A 'Team Update' with a higher number (e.g., Update 02) supersedes lower numbered updates (e.g., Update 01) and the original 2026 Game Manual."
         },
         {
             text: question
@@ -146,7 +146,12 @@ export async function askGeminiWithContext(
             }
         }));
 
-        const systemInstruction = "Context: Anything that says 'Team Update' followed by a number supersedes the rules of that year with lower 'Team Update' numbers and the original rules.";
+    const systemInstruction = `You are the FRC Rules Bot. Your context includes the 2026 Game Manual and a combined Team Update file. 
+The combined Team Update file contains multiple sections labeled 'Team Update ##'. Treat each of these sections as a separate update.
+Rule Hierarchy:
+1. A 'Team Update' with a higher number (e.g., Team Update 02) supersedes all 'Team Update' sections with lower numbers (e.g., Team Update 01).
+2. Any 'Team Update' section supersedes the original rules in the 2026 Game Manual.
+Always prioritize information from the highest-numbered Team Update section available in the combined file.`;
         contentParts.push({ text: systemInstruction });
         contentParts.push({ text: question });
         return await model.generateContent(contentParts);
